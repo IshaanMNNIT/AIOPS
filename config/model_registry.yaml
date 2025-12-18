@@ -1,0 +1,6 @@
+models:
+  stsb:
+    path: models/stsb.onnx
+    tokenizer: sentence-transformers-testing/stsb-bert-tiny-onnx
+    device: cuda
+    max_length: 32

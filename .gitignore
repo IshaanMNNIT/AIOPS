@@ -1,0 +1,86 @@
+# =========================
+# Python
+# =========================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# =========================
+# Virtual environments
+# =========================
+.venv/
+venv/
+ENV/
+env/
+
+# =========================
+# uv / pip artifacts
+# =========================
+pip-wheel-metadata/
+.python-version
+
+# =========================
+# IDE / Editor
+# =========================
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# =========================
+# OS files
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# Logs
+# =========================
+logs/
+*.log
+
+# =========================
+# Test / coverage
+# =========================
+.pytest_cache/
+.coverage
+htmlcov/
+
+# =========================
+# Environment variables
+# =========================
+.env
+.env.*
+
+# =========================
+# Models & large binaries
+# =========================
+models/*.onnx
+models/*.pt
+models/*.bin
+models/*.safetensors
+
+# =========================
+# ONNX / cache
+# =========================
+onnx_cache/
+huggingface/
+.cache/
+
+# =========================
+# Task runtime artifacts
+# =========================
+data/runtime/
+data/tmp/
+
+# =========================
+# Misc
+# =========================
+*.bak
+*.tmp
