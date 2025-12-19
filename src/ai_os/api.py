@@ -5,10 +5,16 @@ from pydantic import BaseModel
 from ai_os.model_manager import ModelManager
 from ai_os.tasks.task_manager import TaskManager
 from ai_os.executors.command_executor import CommandExecutor
+from ai_os.planner.simple_planner import SimplePlanner
+from ai_os.planner.executor import PlanExecutor
+
 
 model_manager = ModelManager()
 task_manager = TaskManager()
 command_executor = CommandExecutor()
+planner = SimplePlanner()
+plan_executor = PlanExecutor(task_manager, command_executor)
+
 
 class InferRequest(BaseModel):
     model: str
@@ -16,6 +22,9 @@ class InferRequest(BaseModel):
 
 class CommandTaskRequest(BaseModel):
     command: list[str]
+
+class PlanRequest(BaseModel):
+    goal: str
 
 def create_app() -> FastAPI:
     app = FastAPI(
@@ -58,6 +67,18 @@ def create_app() -> FastAPI:
     @app.get("/v1/tasks/{task_id}")
     def get_task(task_id: str):
         return task_manager.get_task(task_id)
+
+    @app.post("/v1/plan")
+    def plan_and_execute(req: PlanRequest):
+        plan = planner.plan(req.goal)
+        tasks = plan_executor.execute(plan)
+
+        return {
+            "goal": plan.goal,
+            "steps": [step.dict() for step in plan.steps],
+            "tasks": tasks,
+        }
+
 
     return app
 
