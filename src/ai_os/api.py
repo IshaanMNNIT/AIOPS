@@ -7,6 +7,8 @@ from ai_os.tasks.task_manager import TaskManager
 from ai_os.executors.command_executor import CommandExecutor
 from ai_os.planner.simple_planner import SimplePlanner
 from ai_os.planner.executor import PlanExecutor
+from ai_os.planner.llm_planner import LLMPlanner
+from ai_os.planner.validator import PlanValidationError
 
 
 model_manager = ModelManager()
@@ -70,14 +72,19 @@ def create_app() -> FastAPI:
 
     @app.post("/v1/plan")
     def plan_and_execute(req: PlanRequest):
-        plan = planner.plan(req.goal)
+        try:
+            plan = planner.plan(req.goal)
+        except PlanValidationError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
         tasks = plan_executor.execute(plan)
 
         return {
             "goal": plan.goal,
-            "steps": [step.dict() for step in plan.steps],
+            "steps": [s.dict() for s in plan.steps],
             "tasks": tasks,
         }
+
 
 
     return app

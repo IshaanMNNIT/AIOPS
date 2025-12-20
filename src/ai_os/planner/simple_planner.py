@@ -1,7 +1,7 @@
 from ai_os.planner.plan import Plan, PlanStep
+from ai_os.planner.base import BasePlanner
 
-
-class SimplePlanner:
+class SimplePlanner(BasePlanner):
     """
     Deterministic planner.
     Replaces LLM for now.
