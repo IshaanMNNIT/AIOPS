@@ -8,13 +8,15 @@ from ai_os.executors.command_executor import CommandExecutor
 from ai_os.planner.simple_planner import SimplePlanner
 from ai_os.planner.executor import PlanExecutor
 from ai_os.planner.llm_planner import LLMPlanner
+from ai_os.llm.local import LocalLLMClient
 from ai_os.planner.validator import PlanValidationError
 
 
+local_llm = LocalLLMClient(model_path="models/llm/qwen2.5-1.5b-instruct.gguf")
 model_manager = ModelManager()
 task_manager = TaskManager()
 command_executor = CommandExecutor()
-planner = SimplePlanner()
+planner = LLMPlanner(local_llm)
 plan_executor = PlanExecutor(task_manager, command_executor)
 
 

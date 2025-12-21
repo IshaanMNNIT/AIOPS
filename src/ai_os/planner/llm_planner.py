@@ -22,22 +22,38 @@ class LLMPlanner(BasePlanner):
             raise PlanValidationError(str(e))
 
     def _build_prompt(self, goal: str) -> str:
-        return f"""
-You are a planning engine.
+      return f"""
+    You are a deterministic planning engine.
 
-Return ONLY valid JSON matching this schema:
+    You MUST output ONLY valid JSON.
+    Do NOT include explanations.
+    Do NOT include markdown.
+    Do NOT include text before or after JSON.
 
-{{
-  "goal": string,
-  "steps": [
+    The JSON MUST match this schema exactly:
+
     {{
-      "action": "command",
-      "params": {{
-        "command": ["ls" | "pwd" | "echo", "..."]
-      }}
+      "goal": "{goal}",
+      "steps": [
+        {{
+          "action": "command",
+          "params": {{
+            "command": ["ls"]
+          }}
+        }}
+      ]
     }}
-  ]
-}}
 
-Goal: {goal}
-"""
+    Rules:
+    - Only use action "command"
+    - Only use commands: ls, pwd, echo
+    - If you cannot create a valid plan, return EXACTLY this JSON:
+
+    {{
+      "goal": "{goal}",
+      "steps": []
+    }}
+
+    Now produce the JSON plan.
+    """
+
