@@ -72,7 +72,7 @@ models/*.safetensors
 onnx_cache/
 huggingface/
 .cache/
-
+models/llm/*.gguf
 # =========================
 # Task runtime artifacts
 # =========================
@@ -89,4 +89,3 @@ data/tmp/
 # Ignore specific files
 # =========================
 # Large LLM models
-models/llm/*.gguf
