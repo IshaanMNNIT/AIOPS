@@ -84,3 +84,9 @@ data/tmp/
 # =========================
 *.bak
 *.tmp
+
+# =========================
+# Ignore specific files
+# =========================
+# Large LLM models
+models/llm/*.gguf
