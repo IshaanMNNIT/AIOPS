@@ -10,7 +10,9 @@ from ai_os.planner.executor import PlanExecutor
 from ai_os.planner.llm_planner import LLMPlanner
 from ai_os.llm.local import LocalLLMClient
 from ai_os.planner.validator import PlanValidationError
-
+from ai_os.security.policy import PolicyEngine, PolicyError
+from ai_os.security.identity import Role
+from ai_os.security.capabilities import Capability
 
 local_llm = LocalLLMClient(model_path="models/llm/qwen2.5-1.5b-instruct.gguf")
 model_manager = ModelManager()
@@ -18,7 +20,7 @@ task_manager = TaskManager()
 command_executor = CommandExecutor()
 planner = LLMPlanner(local_llm)
 plan_executor = PlanExecutor(task_manager, command_executor)
-
+policy_engine = PolicyEngine()
 
 class InferRequest(BaseModel):
     model: str
@@ -55,6 +57,13 @@ def create_app() -> FastAPI:
         
     @app.post("/v1/tasks/command")
     def run_command(req: CommandTaskRequest):
+        role = Role.ADMIN  # only admins can do raw commands
+
+        try:
+            policy_engine.check(role, Capability.EXECUTE_COMMAND)
+        except PolicyError as e:
+            raise HTTPException(status_code=403, detail=str(e))
+
         task = task_manager.create_task("command", req.dict())
 
         try:
@@ -68,17 +77,29 @@ def create_app() -> FastAPI:
         task_manager.update_task(task)
         return task
 
+
     @app.get("/v1/tasks/{task_id}")
     def get_task(task_id: str):
         return task_manager.get_task(task_id)
 
     @app.post("/v1/plan")
     def plan_and_execute(req: PlanRequest):
+        # Day 7: hardcoded role (auth comes later)
+        role = Role.ADMIN
+
+        # 🔒 POLICY CHECK — authority layer
+        try:
+            policy_engine.check(role, Capability.EXECUTE_COMMAND)
+        except PolicyError as e:
+            raise HTTPException(status_code=403, detail=str(e))
+
+        # Planning phase (LLM or rule-based)
         try:
             plan = planner.plan(req.goal)
         except PlanValidationError as e:
             raise HTTPException(status_code=400, detail=str(e))
 
+        # Execution phase (sandboxed)
         tasks = plan_executor.execute(plan)
 
         return {
@@ -86,6 +107,7 @@ def create_app() -> FastAPI:
             "steps": [s.dict() for s in plan.steps],
             "tasks": tasks,
         }
+
 
 
 
