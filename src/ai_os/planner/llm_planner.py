@@ -3,6 +3,8 @@ from ai_os.planner.base import BasePlanner
 from ai_os.planner.plan import Plan
 from ai_os.planner.validator import PlanValidator, PlanValidationError
 from ai_os.planner.repair import PlanRepairer
+from ai_os.llm.local import LocalLLMClient
+import os
 
 class LLMPlanner(BasePlanner):
     def __init__(self, llm_client):
@@ -11,6 +13,8 @@ class LLMPlanner(BasePlanner):
         self.repairer = PlanRepairer()
 
     def plan(self, goal: str) -> Plan:
+        
+    
         prompt = self._build_prompt(goal)
         raw = self.llm.generate(prompt)
 

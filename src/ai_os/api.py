@@ -25,11 +25,8 @@ plan_executor = PlanExecutor(task_manager, command_executor)
 policy_engine = PolicyEngine()
 
 local_planner = LLMPlanner(local_llm)
-cloud_llm = None
-cloud_planner = None
-
-if cloud_llm is not None:
-    cloud_planner = LLMPlanner(cloud_llm)
+cloud_llm = CloudLLMClient()
+cloud_planner = LLMPlanner(cloud_llm)
 
 dispatcher = PlannerDispatcher(local_planner = local_planner , cloud_planner = cloud_planner , policy =  policy_engine)
 

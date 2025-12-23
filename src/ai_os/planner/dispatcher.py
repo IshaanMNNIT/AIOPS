@@ -30,6 +30,7 @@ class PlannerDispatcher:
         ↓
         Execute
         """
+        print("PlannerDispatcher: Starting plan dispatch")
 
         try:
             return self.local.plan(goal)
@@ -40,7 +41,8 @@ class PlannerDispatcher:
             return self.local.plan(goal)
         except PlanValidationError:
             pass
-
+        
+        print("☁️ Attempting cloud fallback")
         if not self.cloud:
             raise PlanValidationError("Local Planning failed and no cloud planner available")
 
