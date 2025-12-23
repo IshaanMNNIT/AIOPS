@@ -14,15 +14,26 @@ from ai_os.security.policy import PolicyEngine, PolicyError
 from ai_os.security.identity import Role
 from ai_os.security.capabilities import Capability
 from ai_os.llm.client import CloudLLMClient
+from ai_os.planner.dispatcher import PlannerDispatcher
 
 local_llm = LocalLLMClient(model_path="models/llm/qwen2.5-1.5b-instruct.gguf")
 model_manager = ModelManager()
 task_manager = TaskManager()
 command_executor = CommandExecutor()
-planner = LLMPlanner(local_llm)
+
 plan_executor = PlanExecutor(task_manager, command_executor)
 policy_engine = PolicyEngine()
+
+local_planner = LLMPlanner(local_llm)
 cloud_llm = None
+cloud_planner = None
+
+if cloud_llm is not None:
+    cloud_planner = LLMPlanner(cloud_llm)
+
+dispatcher = PlannerDispatcher(local_planner = local_planner , cloud_planner = cloud_planner , policy =  policy_engine)
+
+
 
 class InferRequest(BaseModel):
     model: str
@@ -94,30 +105,13 @@ def create_app() -> FastAPI:
         except PolicyError as e:
             raise HTTPException(status_code=403, detail=str(e))
 
-        # Planner selection
-        active_planner = planner          # local LLM (default)
-        use_cloud = False                 # Day 8: hardcoded OFF
-
-        if use_cloud:
-            # 🔒 Authority: cloud usage permission
-            try:
-                policy_engine.check(role, Capability.USE_CLOUD_LLM)
-            except PolicyError as e:
-                raise HTTPException(status_code=403, detail=str(e))
-
-            global cloud_llm
-            if cloud_llm is None:
-                cloud_llm = CloudLLMClient()
-
-            active_planner = LLMPlanner(cloud_llm)
-
-        # Planning
+        # 🧠 Day 10: planner dispatcher (retry + fallback)
         try:
-            plan = active_planner.plan(req.goal)
+            plan = dispatcher.plan(req.goal, role)
         except PlanValidationError as e:
             raise HTTPException(status_code=400, detail=str(e))
 
-        # Execution (sandboxed)
+        # ⚙️ Execution (sandboxed)
         tasks = plan_executor.execute(plan)
 
         return {
@@ -125,10 +119,6 @@ def create_app() -> FastAPI:
             "steps": [s.dict() for s in plan.steps],
             "tasks": tasks,
         }
-
-
-
-
 
     return app
 
