@@ -1,5 +1,6 @@
 # src/ai_os/api.py
-
+from fastapi import Request
+from ai_os.security.auth import resolve_request_context
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from ai_os.model_manager import ModelManager
@@ -15,6 +16,8 @@ from ai_os.security.identity import Role
 from ai_os.security.capabilities import Capability
 from ai_os.llm.client import CloudLLMClient
 from ai_os.planner.dispatcher import PlannerDispatcher
+
+
 
 local_llm = LocalLLMClient(model_path="models/llm/qwen2.5-1.5b-instruct.gguf")
 model_manager = ModelManager()
@@ -66,11 +69,11 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=500, detail=str(e))
         
     @app.post("/v1/tasks/command")
-    def run_command(req: CommandTaskRequest):
-        role = Role.ADMIN  # only admins can do raw commands
+    def run_command(req: CommandTaskRequest , request : Request):
+        ctx = resolve_request_context(request)
 
         try:
-            policy_engine.check(role, Capability.EXECUTE_COMMAND)
+            policy_engine.check(ctx.role, Capability.EXECUTE_COMMAND)
         except PolicyError as e:
             raise HTTPException(status_code=403, detail=str(e))
 
@@ -93,8 +96,9 @@ def create_app() -> FastAPI:
         return task_manager.get_task(task_id)
 
     @app.post("/v1/plan")
-    def plan_and_execute(req: PlanRequest):
-        role = Role.ADMIN  # auth comes later
+    def plan_and_execute(req: PlanRequest , request: Request):
+        ctx = resolve_request_context(request)
+        role = ctx.role  # auth comes later
 
         # 🔒 Authority: execution permission
         try:

@@ -11,7 +11,6 @@ ROLE_CAPABILITIES = {
         Capability.USE_CLOUD_LLM,
     },
     Role.USER: {
-        Capability.EXECUTE_COMMAND,
         Capability.READ_FILES,
     },
     Role.SYSTEM: {
