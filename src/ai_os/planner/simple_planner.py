@@ -8,37 +8,42 @@ class SimplePlanner(BasePlanner):
     """
 
     def plan(self, goal: str) -> Plan:
-        goal_lower = goal.lower()
+        g = goal.lower().strip()
 
-        if "list files" in goal_lower:
+        if "list" in g and "files" in g:
             return Plan(
                 goal=goal,
                 steps=[
-                    PlanStep(
+                    PlanStep
+                    (
                         action="command",
                         params={"command": ["ls"]},
                     )
-                ],
+                ]
             )
-
-        if "where am i" in goal_lower:
+        
+        if "working directory" in g or "pwd" in g:
+            return Plan(
+                goal=goal,
+                steps=[
+                    PlanStep
+                    (
+                        action="command",
+                        params={"command": ["pwd"]},
+                    )
+                ]
+            )
+        
+        if g.startswith("echo "):
+            msg = goal[5:].strip()
             return Plan(
                 goal=goal,
                 steps=[
                     PlanStep(
                         action="command",
-                        params={"command": ["pwd"]},
+                        params={"command": ["echo", msg]},
                     )
-                ],
+                ]
             )
 
-        # Default fallback
-        return Plan(
-            goal=goal,
-            steps=[
-                PlanStep(
-                    action="command",
-                    params={"command": ["echo", "No plan available"]},
-                )
-            ],
-        )
+        raise ValueError("Simple Planner cannot handle this goal")
