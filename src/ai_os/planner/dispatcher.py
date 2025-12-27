@@ -1,74 +1,93 @@
+import time
 from ai_os.planner.llm_planner import LLMPlanner
 from ai_os.planner.validator import PlanValidationError
 from ai_os.security.capabilities import Capability
-from ai_os.security.policy import PolicyEngine , PolicyError
+from ai_os.security.policy import PolicyEngine, PolicyError
 from ai_os.planner.simple_planner import SimplePlanner
 from ai_os.observability.logger import get_logger
+from ai_os.persistence.db import get_conn
 
 logger = get_logger("planner.dispatcher")
-class PlannerDispatcher:
 
-    def __init__(self , local_planner: LLMPlanner , cloud_planner: LLMPlanner | None , policy : PolicyEngine):
+
+class PlannerDispatcher:
+    def __init__(
+        self,
+        local_planner: LLMPlanner,
+        cloud_planner: LLMPlanner | None,
+        policy: PolicyEngine,
+    ):
         self.local = local_planner
         self.cloud = cloud_planner
         self.policy = policy
         self.simple = SimplePlanner()
 
-    def plan(self , goal : str , role):
+    def _persist_plan(self, goal: str, planner_used: str):
+        conn = get_conn()
+        cur = conn.cursor()
+
+        cur.execute(
+            """
+            INSERT INTO plans (goal, planner_used, created_at)
+            VALUES (?, ?, ?)
+            """,
+            (goal, planner_used, time.time()),
+        )
+
+        conn.commit()
+        conn.close()
+
+    def plan(self, goal: str, role):
         """
-        Local LLM
-        ↓
-        Repair
-        ↓
-        Validate
-        ↓ (fails?)
-        Retry Local (1x)
-        ↓ (fails?)
-        Policy check: USE_CLOUD_LLM
-        ↓
-        Cloud LLM (OpenRouter)
-        ↓
-        Repair
-        ↓
-        Validate
-        ↓
-        Execute
+        Planning strategy:
+
+        Local LLM (x2)
+          ↓
+        Cloud LLM (if allowed)
+          ↓
+        Deterministic SimplePlanner
         """
+
         logger.info(f"Starting plan dispatch | goal='{goal}' | role={role}")
 
+        # 1️⃣ Local attempt 1
         logger.info("Attempting local planner (attempt 1)")
-
         try:
-            return self.local.plan(goal)
+            plan = self.local.plan(goal)
+            self._persist_plan(goal, "local")
+            return plan
         except PlanValidationError:
             pass
-        
+
+        # 2️⃣ Local retry
         logger.warning("Local planner failed, retrying (attempt 2)")
-
-        try :
-            return self.local.plan(goal)
+        try:
+            plan = self.local.plan(goal)
+            self._persist_plan(goal, "local")
+            return plan
         except PlanValidationError:
             pass
-        
-        logger.warning("Local planning failed, attempting cloud fallback")
 
+        # 3️⃣ Cloud fallback
+        logger.warning("Local planning failed, attempting cloud fallback")
         if self.cloud:
             try:
                 self.policy.check(role, Capability.USE_CLOUD_LLM)
-                return self.cloud.plan(goal)
+                plan = self.cloud.plan(goal)
+                self._persist_plan(goal, "cloud")
+                return plan
+            except PolicyError as e:
+                logger.error("Cloud usage blocked by policy")
+                raise PlanValidationError(str(e))
             except PlanValidationError:
                 pass
-            except PolicyError as e:
-                logger.error("Cloud Usage blocked by policy")
-                raise PlanValidationError(str(e))
 
-        # 4️⃣ Final deterministic fallback
+        # 4️⃣ Deterministic fallback
         logger.warning("Falling back to deterministic SimplePlanner")
-
         try:
-            return self.simple.plan(goal)
+            plan = self.simple.plan(goal)
+            self._persist_plan(goal, "simple")
+            return plan
         except Exception:
             logger.error("All planning strategies failed")
-            raise PlanValidationError(
-                "Unable to create a safe execution plan"
-            )
+            raise PlanValidationError("Unable to create a safe execution plan")

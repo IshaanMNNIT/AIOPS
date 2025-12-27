@@ -4,6 +4,8 @@ import logging
 import uvicorn
 from ai_os.api import create_app
 from config.settings import settings    
+from ai_os.persistence.schema import init_db
+init_db()
 
 logging.basicConfig(
     level=settings.log_level,

@@ -88,4 +88,4 @@ data/tmp/
 # =========================
 # Ignore specific files
 # =========================
-# Large LLM models
+data/
