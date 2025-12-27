@@ -3,12 +3,19 @@
 import logging
 import uvicorn
 from ai_os.api import create_app
-from config.settings import settings    
 from ai_os.persistence.schema import init_db
+from ai_os.config import Config , ConfigError
+from ai_os.observability.logger import get_logger
+
+try:
+    Config.validate()
+except ConfigError as e:
+    raise RuntimeError(f"Configuration error:\n{e}")
+
 init_db()
 
 logging.basicConfig(
-    level=settings.log_level,
+    level=Config.LOG_LEVEL,
     format="%(asctime)s | %(levelname)s | %(message)s",
 )
 

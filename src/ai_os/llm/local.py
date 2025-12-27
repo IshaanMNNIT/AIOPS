@@ -2,6 +2,8 @@ from llama_cpp import Llama
 
 class LocalLLMClient:
     def __init__(self , model_path : str):
+        if not model_path:
+            raise RuntimeError("LOCAL_LLM_PATH not configured")
         self.llm = Llama(
             model_path=model_path,
             n_ctx=2048,

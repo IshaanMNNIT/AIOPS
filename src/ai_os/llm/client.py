@@ -1,5 +1,5 @@
 import httpx
-from ai_os.config import settings
+from ai_os.config import Config , ConfigError
 
 
 class CloudLLMClient:
@@ -8,13 +8,10 @@ class CloudLLMClient:
     Used ONLY for planning.
     """
 
-    def __init__(self):
-        if not settings.OPENROUTER_API_KEY:
-            raise RuntimeError("OPENROUTER_API_KEY not configured")
-
-        self.base_url = settings.OPENROUTER_BASE_URL.rstrip("/")
-        self.api_key = settings.OPENROUTER_API_KEY
-        self.model = settings.OPENROUTER_MODEL
+    def __init__(self , api_key : str , base_url : str , model : str):
+        self.api_key = api_key
+        self.base_url = base_url
+        self.model = model
 
     def generate(self, prompt: str) -> str:
         headers = {

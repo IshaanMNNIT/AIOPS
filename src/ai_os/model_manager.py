@@ -3,7 +3,8 @@ import yaml
 import logging
 import onnxruntime as ort
 from transformers import AutoTokenizer
-from config.settings import settings
+from ai_os.config import Config as settings
+from ai_os.config import ConfigError
 
 logger = logging.getLogger(__name__)
 

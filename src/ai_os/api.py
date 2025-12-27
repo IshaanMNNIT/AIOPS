@@ -16,10 +16,10 @@ from ai_os.security.identity import Role
 from ai_os.security.capabilities import Capability
 from ai_os.llm.client import CloudLLMClient
 from ai_os.planner.dispatcher import PlannerDispatcher
+from ai_os.config import Config , ConfigError
 
 
-
-local_llm = LocalLLMClient(model_path="models/llm/qwen2.5-1.5b-instruct.gguf")
+local_llm = LocalLLMClient(model_path=Config.LOCAL_LLM_PATH)
 model_manager = ModelManager()
 task_manager = TaskManager()
 command_executor = CommandExecutor()
@@ -28,8 +28,17 @@ plan_executor = PlanExecutor(task_manager, command_executor)
 policy_engine = PolicyEngine()
 
 local_planner = LLMPlanner(local_llm)
-cloud_llm = CloudLLMClient()
-cloud_planner = LLMPlanner(cloud_llm)
+
+cloud_planner = None
+
+if Config.ENABLE_CLOUD_LLM:
+    cloud_llm = CloudLLMClient(
+        api_key=Config.OPENROUTER_API_KEY,
+        base_url=Config.OPENROUTER_BASE_URL,
+        model=Config.OPENROUTER_MODEL,
+    )
+    cloud_planner = LLMPlanner(cloud_llm)
+
 
 dispatcher = PlannerDispatcher(local_planner = local_planner , cloud_planner = cloud_planner , policy =  policy_engine)
 
