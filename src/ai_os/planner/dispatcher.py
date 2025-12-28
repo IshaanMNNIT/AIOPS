@@ -9,6 +9,14 @@ from ai_os.persistence.db import get_conn
 
 logger = get_logger("planner.dispatcher")
 
+FORBIDDEN_KEYWORDS = [
+    "rm",
+    "delete",
+    "shutdown",
+    "format",
+    "kill",
+]
+
 
 class PlannerDispatcher:
     def __init__(
@@ -37,6 +45,10 @@ class PlannerDispatcher:
         conn.commit()
         conn.close()
 
+    def _check_goal_safety(self, goal: str):
+        if any(word in goal.lower() for word in FORBIDDEN_KEYWORDS):
+            raise PlanValidationError("Unsafe goal detected")
+
     def plan(self, goal: str, role):
         """
         Planning strategy:
@@ -49,6 +61,9 @@ class PlannerDispatcher:
         """
 
         logger.info(f"Starting plan dispatch | goal='{goal}' | role={role}")
+
+        # 🔒 Day 17: Fail fast on unsafe intent
+        self._check_goal_safety(goal)
 
         # 1️⃣ Local attempt 1
         logger.info("Attempting local planner (attempt 1)")

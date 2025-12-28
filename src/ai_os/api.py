@@ -1,23 +1,24 @@
-# src/ai_os/api.py
-from fastapi import Request
-from ai_os.security.auth import resolve_request_context
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
+
 from ai_os.model_manager import ModelManager
 from ai_os.tasks.task_manager import TaskManager
 from ai_os.executors.command_executor import CommandExecutor
-from ai_os.planner.simple_planner import SimplePlanner
 from ai_os.planner.executor import PlanExecutor
 from ai_os.planner.llm_planner import LLMPlanner
-from ai_os.llm.local import LocalLLMClient
 from ai_os.planner.validator import PlanValidationError
 from ai_os.security.policy import PolicyEngine, PolicyError
-from ai_os.security.identity import Role
 from ai_os.security.capabilities import Capability
+from ai_os.security.auth import resolve_request_context
+from ai_os.security.rate_limit import RateLimiter, RateLimitError
+from ai_os.llm.local import LocalLLMClient
 from ai_os.llm.client import CloudLLMClient
 from ai_os.planner.dispatcher import PlannerDispatcher
-from ai_os.config import Config , ConfigError
+from ai_os.config import Config
 
+# ---- Globals ----
+
+rate_limiter = RateLimiter(max_requests=10, window_seconds=60)
 
 local_llm = LocalLLMClient(model_path=Config.LOCAL_LLM_PATH)
 model_manager = ModelManager()
@@ -30,7 +31,6 @@ policy_engine = PolicyEngine()
 local_planner = LLMPlanner(local_llm)
 
 cloud_planner = None
-
 if Config.ENABLE_CLOUD_LLM:
     cloud_llm = CloudLLMClient(
         api_key=Config.OPENROUTER_API_KEY,
@@ -39,10 +39,13 @@ if Config.ENABLE_CLOUD_LLM:
     )
     cloud_planner = LLMPlanner(cloud_llm)
 
+dispatcher = PlannerDispatcher(
+    local_planner=local_planner,
+    cloud_planner=cloud_planner,
+    policy=policy_engine,
+)
 
-dispatcher = PlannerDispatcher(local_planner = local_planner , cloud_planner = cloud_planner , policy =  policy_engine)
-
-
+# ---- Schemas ----
 
 class InferRequest(BaseModel):
     model: str
@@ -54,10 +57,11 @@ class CommandTaskRequest(BaseModel):
 class PlanRequest(BaseModel):
     goal: str
 
+
 def create_app() -> FastAPI:
     app = FastAPI(
         title="AI OS Daemon",
-        version="0.1.0"
+        version="0.1.0",
     )
 
     @app.get("/health")
@@ -76,11 +80,19 @@ def create_app() -> FastAPI:
             return {"result": model_manager.infer(req.model, req.prompt)}
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
-        
-    @app.post("/v1/tasks/command")
-    def run_command(req: CommandTaskRequest , request : Request):
-        ctx = resolve_request_context(request)
 
+    @app.post("/v1/tasks/command")
+    def run_command(req: CommandTaskRequest, request: Request):
+        ctx = resolve_request_context(request)
+        rate_key = f"{request.client.host}:{ctx.role}"
+
+        # 🚦 Day 17: rate limiting
+        try:
+            rate_limiter.check(rate_key)
+        except RateLimitError as e:
+            raise HTTPException(status_code=429, detail=str(e))
+
+        # 🔒 Authorization
         try:
             policy_engine.check(ctx.role, Capability.EXECUTE_COMMAND)
         except PolicyError as e:
@@ -95,33 +107,38 @@ def create_app() -> FastAPI:
         except Exception as e:
             task.status = "failed"
             task.error = str(e)
+            task_manager.update_task(task)
+            raise HTTPException(status_code=400, detail=str(e))
 
         task_manager.update_task(task)
         return task
-
 
     @app.get("/v1/tasks/{task_id}")
     def get_task(task_id: str):
         return task_manager.get_task(task_id)
 
     @app.post("/v1/plan")
-    def plan_and_execute(req: PlanRequest , request: Request):
+    def plan_and_execute(req: PlanRequest, request: Request):
         ctx = resolve_request_context(request)
-        role = ctx.role  # auth comes later
+        rate_key = f"{request.client.host}:{ctx.role}"
 
-        # 🔒 Authority: execution permission
+        # 🚦 Day 17: rate limiting
         try:
-            policy_engine.check(role, Capability.EXECUTE_COMMAND)
+            rate_limiter.check(rate_key)
+        except RateLimitError as e:
+            raise HTTPException(status_code=429, detail=str(e))
+
+        # 🔒 Authorization
+        try:
+            policy_engine.check(ctx.role, Capability.EXECUTE_COMMAND)
         except PolicyError as e:
             raise HTTPException(status_code=403, detail=str(e))
 
-        # 🧠 Day 10: planner dispatcher (retry + fallback)
         try:
-            plan = dispatcher.plan(req.goal, role)
+            plan = dispatcher.plan(req.goal, ctx.role)
         except PlanValidationError as e:
             raise HTTPException(status_code=400, detail=str(e))
 
-        # ⚙️ Execution (sandboxed)
         tasks = plan_executor.execute(plan)
 
         return {
@@ -131,5 +148,3 @@ def create_app() -> FastAPI:
         }
 
     return app
-
-
