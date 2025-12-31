@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
-
+from ai_os.observability.timing import timing_middleware
 from ai_os.model_manager import ModelManager
 from ai_os.tasks.task_manager import TaskManager
 from ai_os.executors.command_executor import CommandExecutor
@@ -64,9 +64,15 @@ def create_app() -> FastAPI:
         version="0.1.0",
     )
 
+    app.middleware("http")(timing_middleware)
+
     @app.get("/health")
     def health():
-        return {"status": "ok"}
+        return {
+            "status": "ok",
+            "env": Config.ENV,
+            "cloud_enabled": Config.ENABLE_CLOUD_LLM,
+        }
 
     @app.get("/v1/models")
     def list_models():
@@ -108,7 +114,15 @@ def create_app() -> FastAPI:
             task.status = "failed"
             task.error = str(e)
             task_manager.update_task(task)
-            raise HTTPException(status_code=400, detail=str(e))
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": {
+                        "code": "Command Failed",
+                        "message": str(e),
+                    }
+                },
+            )
 
         task_manager.update_task(task)
         return task
@@ -137,7 +151,15 @@ def create_app() -> FastAPI:
         try:
             plan = dispatcher.plan(req.goal, ctx.role)
         except PlanValidationError as e:
-            raise HTTPException(status_code=400, detail=str(e))
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": {
+                        "code": "Plan Failed",
+                        "message": str(e),
+                    }
+                },
+            )
 
         tasks = plan_executor.execute(plan)
 
